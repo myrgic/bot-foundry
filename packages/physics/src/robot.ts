@@ -12,6 +12,8 @@ import type { SolverParams } from './params.ts';
 
 export const MAX_HULLS = 64;
 export const MAX_BODIES = 65536;
+/** A pose rotation shorter than this cannot be normalized into a direction. */
+export const MIN_ROTATION_LENGTH = 1e-9;
 
 export interface BuiltRobot {
   bodies: Body[];
@@ -38,11 +40,15 @@ function requireFinite(what: string, values: readonly number[]): void {
 
 /**
  * Bodies get indices firstIndex, firstIndex + 1, … in part order. Throws on a pose, mass or inertia
- * that is not finite: a NaN or infinity in the state would spread through every contact and joint.
+ * that is not finite, and on a pose rotation too short to normalize: a NaN or infinity in the state would spread through every contact and joint.
  */
 export function buildRobot(model: PhysicalModel, pose: Transform, robotId: string, firstIndex: number, params: SolverParams): BuiltRobot {
   requireFinite('the pose position', pose.position);
   requireFinite('the pose rotation', pose.rotation);
+  const rotLength = Math.hypot(...pose.rotation);
+  if (!(rotLength >= MIN_ROTATION_LENGTH)) {
+    throw new Error(`the pose rotation must be a non-zero quaternion (length at least ${MIN_ROTATION_LENGTH}), got [${pose.rotation.join(', ')}]`);
+  }
   for (const part of model.parts) {
     requireFinite(`part ${part.id}: mass`, [part.mass.mass]);
     requireFinite(`part ${part.id}: inertia`, part.mass.inertia);
