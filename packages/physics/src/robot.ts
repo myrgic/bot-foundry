@@ -43,6 +43,10 @@ function requireFinite(what: string, values: readonly number[]): void {
 export function buildRobot(model: PhysicalModel, pose: Transform, robotId: string, firstIndex: number, params: SolverParams): BuiltRobot {
   requireFinite('the pose position', pose.position);
   requireFinite('the pose rotation', pose.rotation);
+  // a zero-length quaternion has no direction; quatNormalize would turn it into all zeros
+  if (!(pose.rotation.reduce((sum, v) => sum + v * v, 0) > 0)) {
+    throw new Error(`the pose rotation must not be zero-length, got [${pose.rotation.join(', ')}]`);
+  }
   for (const part of model.parts) {
     requireFinite(`part ${part.id}: mass`, [part.mass.mass]);
     requireFinite(`part ${part.id}: inertia`, part.mass.inertia);

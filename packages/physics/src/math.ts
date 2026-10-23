@@ -126,6 +126,7 @@ export function quatConj(out: Quat, q: Quat): Quat {
   return out;
 }
 
+/** Scales q to unit length in place. A zero-length q comes back as all zeros, so callers that can see one must check first. */
 export function quatNormalize(q: Quat): Quat {
   const l = Math.sqrt(q[0]! * q[0]! + q[1]! * q[1]! + q[2]! * q[2]! + q[3]! * q[3]!);
   const s = l > 0 ? 1 / l : 0;
