@@ -22,7 +22,7 @@ Bodies are typed by how real robots are built, because the physics needs to know
 - **Billet:** a machined solid, like a milled aluminium unibody.
 - **Tube:** a profile swept along a path, for frames.
 
-Components (motors, batteries, speed controllers, wheels) carry their own geometry, a keep-out envelope (the space they need to fit and run), a bolt pattern, and electrical specs. A carve feature subtracts the envelope and drills clearance holes for the bolt pattern, so a part cuts its own space into the frame.
+Components (motors, batteries, speed controllers, wheels) carry their own geometry, a keep-out envelope (the space they need to fit and run, including an output shaft, so a carve drills its hole), a bolt pattern, and electrical specs. A carve feature subtracts the envelope and drills clearance holes for the bolt pattern, so a part cuts its own space into the frame.
 
 The kernel uses [manifold](https://github.com/elalish/manifold) for booleans. It always produces watertight solids, which means volume, centre of mass and inertia can be integrated straight from the mesh. Each body's result is cached against a hash of everything it depends on, so dragging one motor only re-evaluates the bodies that motor touches.
 

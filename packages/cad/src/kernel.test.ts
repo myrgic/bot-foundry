@@ -393,6 +393,32 @@ describe('carve', () => {
     k.dispose();
   });
 
+  it('carving the catalog gearmotor into a wall drills the output shaft hole through it', () => {
+    // wall z 0..6 mm; the mount face sits on the wall's inner face (z = 0), can behind it, shaft out through it
+    const wall = makeDesign({
+      sketches: [sketch('s', PLANE_XY, rectProfile(0, 0, 0.1, 0.1))],
+      bodies: [body('b', 'al6061', { kind: 'billet' },
+        { kind: 'extrude', id: 'e', sketch: 's', distance: 0.006, op: 'new' },
+        { kind: 'carve', id: 'c', component: 'm', clearance: 0.001 })],
+      components: [{ id: 'm', def: 'motor.gearmotor-36mm-27to1', pose: { position: [0.05, 0.05, -0.095], rotation: [0, 0, 0, 1] } }],
+    });
+    const disc = (r: number) => { const n = circleSegments(r); return (n / 2) * r * r * Math.sin((2 * Math.PI) / n); };
+    // the clearance grows each keep-out by 1 mm on every side, so the can pocket is 2 mm + 1 mm deep
+    const pocket = disc(0.0205) * 0.003;
+    // the shaft (4 mm radius + 1 mm clearance) carries on through the remaining 3 mm of the wall
+    const shaftHole = disc(0.005) * 0.003;
+    const b = kernel.evaluate(wall).bodies[0]!;
+    expect(b.errors).toEqual([]);
+    expect(rel(0.1 * 0.1 * 0.006 - b.mass.volume, pocket + shaftHole)).toBeLessThan(1e-5);
+    // the hole reaches the wall's outer face: a vertex ring of radius 5 mm sits at z = 6 mm
+    let ring = 0;
+    const pos = b.mesh.positions;
+    for (let i = 0; i < pos.length; i += 3) {
+      if (Math.abs(pos[i + 2]! - 0.006) < 1e-6 && Math.abs(Math.hypot(pos[i]! - 0.05, pos[i + 1]! - 0.05) - 0.005) < 1e-4) ring++;
+    }
+    expect(ring).toBeGreaterThan(8);
+  });
+
   it('reports an unknown component', () => {
     const d = makeDesign({ ...cube, components: [] });
     expect(kernel.evaluate(d).bodies[0]!.errors.join()).toMatch(/component "blk" does not exist/);

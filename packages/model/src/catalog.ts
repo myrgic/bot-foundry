@@ -41,7 +41,11 @@ export const CATALOG: ComponentDef[] = [
       { kind: 'cylinder', radius: 0.018, length: 0.095, axis: 'z', at: [0, 0, 0.0475] },
       { kind: 'cylinder', radius: 0.004, length: 0.020, axis: 'z', at: [0, 0, 0.105] },
     ],
-    keepOut: [{ kind: 'cylinder', radius: 0.0195, length: 0.097, axis: 'z', at: [0, 0, 0.0485] }],
+    // the can plus 2 mm past the mount face, and the output shaft over its full length so a carve drills its hole
+    keepOut: [
+      { kind: 'cylinder', radius: 0.0195, length: 0.097, axis: 'z', at: [0, 0, 0.0485] },
+      { kind: 'cylinder', radius: 0.004, length: 0.020, axis: 'z', at: [0, 0, 0.105] },
+    ],
     mounts: [{
       face: { origin: [0, 0, 0.095], normal: [0, 0, 1], xAxis: [1, 0, 0] },
       holes: [
