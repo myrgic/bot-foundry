@@ -4,8 +4,8 @@ import type { World } from './index.ts';
 import { mechanism, pile, tumble } from './scenarios.ts';
 import { loadWasmSolver } from './wasm.ts';
 
-// The cross-backend checks other than the two-robot scenarios (backends.robots.test.ts): the
-// WebAssembly and TypeScript backends must agree bit for bit, same inputs and same hash.
+// The cross-backend checks other than the two-robot scenarios (the backends.robots.*.test.ts
+// files): the WebAssembly and TypeScript backends must agree bit for bit, same inputs and same hash.
 
 describe('backends', () => {
   beforeAll(loadWasmSolver);

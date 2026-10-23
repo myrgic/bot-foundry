@@ -1,9 +1,9 @@
 import { expect } from 'vitest';
 import type { Scenario } from './scenarios.ts';
 
-// Shared by the cross-backend tests (backends.test.ts, backends.robots.test.ts). The WebAssembly
-// backend runs the same operations in the same order as the TypeScript one, in f64 with no fused
-// multiply-add, so the two must agree bit for bit: same inputs, same hash.
+// Shared by the cross-backend tests (backends.test.ts and the backends.robots.*.test.ts files). The
+// WebAssembly backend runs the same operations in the same order as the TypeScript one, in f64 with
+// no fused multiply-add, so the two must agree bit for bit: same inputs, same hash.
 
 const STEPS = 2000;
 const CHECK_EVERY = 250;
