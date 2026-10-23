@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Loop, Plane, Segment, Sketch, V2 } from '@botfoundry/model';
-import { arcGeometry, bulgeThrough, sampleSegment } from '../geom/arc.ts';
+import { arcGeometry, bulgeThrough } from '@botfoundry/cad';
+import { sampleSegment } from '../geom/arc.ts';
 import { loopsToProfiles, nearestEdge, profileLoops, rectangleLoop, circleAt } from '../geom/loops.ts';
 import { planeToWorld } from '../geom/plane.ts';
 import { GRID_COARSE, GRID_FINE, parsePair, parseTyped, snapPoint, type SnapKind } from '../geom/snap.ts';

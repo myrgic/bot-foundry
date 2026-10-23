@@ -43,3 +43,7 @@ export { createKernel } from './kernel.ts';
 export type { CadKernel, KernelOptions, KernelStats } from './kernel.ts';
 export { sampleDesign } from './samples.ts';
 export { circleLoop, circleProfile, polygonLoop, rectLoop, rectProfile } from './sketch.ts';
+export { arcGeometry, bulgeThrough, sampleArc } from './arc.ts';
+export type { ArcGeometry } from './arc.ts';
+export { planeFrame, planeToWorld, worldToPlane } from './vec.ts';
+export type { PlaneFrame } from './vec.ts';
