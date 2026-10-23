@@ -27,7 +27,16 @@ export interface PhysPart {
 }
 
 export type Connection =
-  | { kind: 'bolt'; id: Id; a: Id; b: Id; position: V3; axis: V3; rating: BoltRating }
+  | {
+      kind: 'bolt'; id: Id; a: Id; b: Id; position: V3;
+      /**
+       * Direction in the design frame (need not be unit length), pointing from b toward a (the head side). The solver
+       * uses it as given: axial force is measured along it, so a bolt in tension reads positive
+       * when the axis points this way. Compile emits it this way; anything else that builds a
+       * bolt connection must too.
+       */
+      axis: V3; rating: BoltRating;
+    }
   | { kind: 'weld'; id: Id; a: Id; b: Id; path: V3[]; rating: WeldRating }
   | {
       kind: 'joint'; id: Id; joint: 'fixed' | 'hinge' | 'bearing' | 'slider' | 'ball';

@@ -165,7 +165,7 @@ export function mechanism(): Scenario {
           { kind: 'joint', id: 'hinge', joint: 'hinge', a: 'chassis', b: 'arm', anchor: [0.15, 0.08, 0], axis: [0, 0, 1], limits: [-0.3, 0.3] },
           { kind: 'joint', id: 'slider', joint: 'slider', a: 'rail', b: 'carriage', anchor: [-0.15, 0.5, -0.1], axis: [1, -1, 0], limits: [-1, 0.15] },
           { kind: 'joint', id: 'ball', joint: 'ball', a: 'rail', b: 'rod', anchor: [0.2, 0.6, -0.1] },
-          bolt('m5', 'chassis', 'bracket', [-0.1, 0.055, 0.1], [0, 1, 0]),
+          bolt('m5', 'chassis', 'bracket', [-0.1, 0.055, 0.1], [0, -1, 0]),
           { kind: 'weld', id: 'seam', a: 'chassis', b: 'plate', path: [[-0.14, 0.055, -0.1], [-0.06, 0.055, -0.1]], rating: { strength: 2e4 } },
         ]),
         { position: [0, 0.02, 0], rotation: [0, 0, 0, 1] },

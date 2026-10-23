@@ -149,6 +149,48 @@ describe('connections', () => {
     expect(c).toEqual({ kind: 'bolt', id: 'f1', a: 'alu', b: 'steel', position: [0.01, 0.02, 0.03], axis: [0, 0, 1], rating: boltRating(bolt) });
   });
 
+  it('emits a bolt axis pointing from b toward a, whichever way it was authored', () => {
+    const bolt = { size: 'M6', grade: '10.9', length: 0.02 } as const;
+    // low sits at z in [0, 0.01], high at z in [0.5, 0.51]
+    const d = makeDesign({
+      sketches: [
+        sketch('s-low', PLANE_XY, rectProfile(0, 0, 0.1, 0.1)),
+        sketch('s-high', { ...PLANE_XY, origin: [0, 0, 0.5] }, rectProfile(0, 0, 0.1, 0.1)),
+      ],
+      bodies: [
+        body('low', 'a36', { kind: 'billet' }, { kind: 'extrude', id: 'e', sketch: 's-low', distance: 0.01, op: 'new' }),
+        body('high', 'a36', { kind: 'billet' }, { kind: 'extrude', id: 'e', sketch: 's-high', distance: 0.01, op: 'new' }),
+      ],
+      fasteners: [
+        { id: 'up-high-first', bolt, position: [0, 0, 0], axis: [0, 0, 1], joins: ['high', 'low'] },
+        { id: 'down-high-first', bolt, position: [0, 0, 0], axis: [0, 0, -1], joins: ['high', 'low'] },
+        { id: 'up-low-first', bolt, position: [0, 0, 0], axis: [0, 0, 1], joins: ['low', 'high'] },
+        { id: 'down-low-first', bolt, position: [0, 0, 0], axis: [0, 0, -1], joins: ['low', 'high'] },
+      ],
+    });
+    const axis = (id: string) => {
+      const c = kernel.compile(d).connections.find((x) => x.id === id);
+      if (!c || c.kind !== 'bolt') throw new Error(`no bolt ${id}`);
+      return c.axis;
+    };
+    // a is the high part: b -> a is +z
+    expect(axis('up-high-first')).toEqual([0, 0, 1]);
+    expect(axis('down-high-first')).toEqual([0, 0, 1]);
+    // a is the low part: b -> a is -z
+    expect(axis('up-low-first')).toEqual([0, 0, -1]);
+    expect(axis('down-low-first')).toEqual([0, 0, -1]);
+  });
+
+  it('keeps a bolt axis as authored when the centres are level along it', () => {
+    const bolt = { size: 'M6', grade: '10.9', length: 0.02 } as const;
+    const d = two({ fasteners: [
+      { id: 'p', bolt, position: [0, 0, 0], axis: [0, 0, 1], joins: ['alu', 'steel'] },
+      { id: 'n', bolt, position: [0, 0, 0], axis: [0, 0, -1], joins: ['alu', 'steel'] },
+    ] });
+    const axes = kernel.compile(d).connections.map((c) => (c.kind === 'bolt' ? c.axis : null));
+    expect(axes).toEqual([[0, 0, 1], [0, 0, -1]]);
+  });
+
   it('rates welds with the weaker parent and the length of the seam', () => {
     const path = [[0, 0, 0], [0.05, 0, 0], [0.05, 0.05, 0]] as const;
     const mk = (a: string, b: string) => two({ welds: [{ id: 'w', joins: [a, b], path: [...path], throat: 0.004 }] });
@@ -179,10 +221,11 @@ describe('connections', () => {
     if (first.kind !== 'bolt') throw new Error('expected bolts');
     expect(first.a).toBe('motor-right');
     expect(first.b).toBe('wall-right');
-    // mount face at the wall's inner face (z = 0.114), axis along z, hole at u = +0.014 from the shaft axis
+    // mount face at the wall's inner face (z = 0.114), hole at u = +0.014 from the shaft axis; the motor sits
+    // inboard of the wall, so the axis from b toward a points along -z
     expect(first.position[2]).toBeCloseTo(0.114, 6);
     expect(first.position[0]).toBeCloseTo(-0.04 + 0.014, 6);
-    expect(first.axis[2]).toBeCloseTo(1, 9);
+    expect(first.axis[2]).toBeCloseTo(-1, 9);
     expect(first.rating).toEqual(boltRating({ size: 'M3', grade: '10.9', length: 0.010 }));
     // listing a fastener between the pair replaces the implicit ones
     d.fasteners.push({ id: 'mine', bolt: { size: 'M3', grade: '8.8', length: 0.01 }, position: [0, 0, 0], axis: [0, 0, 1], joins: ['wall-right', 'motor-right'] });

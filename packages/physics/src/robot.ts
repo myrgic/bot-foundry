@@ -114,9 +114,7 @@ function buildConnection(
     case 'bolt': {
       anchor = toWorld(c.position, vec3());
       axis = worldDir(c.axis);
-      // orient the bolt axis from B's side to A's side so tension reads positive
-      const side = (a.pos[0]! - b.pos[0]!) * axis[0]! + (a.pos[1]! - b.pos[1]!) * axis[1]! + (a.pos[2]! - b.pos[2]!) * axis[2]!;
-      if (side < 0) for (let i = 0; i < 3; i++) axis[i] = -axis[i]!;
+      // the axis points from b toward a (see Connection in @botfoundry/model); used as given
       rating = { kind: 'bolt', rating: c.rating };
       break;
     }
