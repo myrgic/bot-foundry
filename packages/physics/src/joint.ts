@@ -142,7 +142,13 @@ export class Joint implements Constraint {
     // persistent error which re-grows the lost α share every substep, and the multiplier read out
     // as the connection's force is then biased (0.2 % on a hanging 100 kg plate). Decaying by γ alone
     // keeps the readout within a few ppm of the static load.
+    // The angle lock keeps the paper's α·γ. Carried over at γ alone, its multiplier feeds a
+    // vibration of the plates of a bolted assembly that grows until bolts break (issue #1: in the
+    // free-falling two-robot scene, a 1e-6 rad/s nudge to one plate grows past 1 rad/s within 1500
+    // substeps; at α·γ it dies away). Its λ is a moment, which the ratings do not read, and the
+    // extra sag it costs a 3 kg, 0.5 m cantilever on a fixed joint is 13 µm.
     const decay = p.gamma;
+    const lockDecay = p.alpha * p.gamma;
     const a = this.a, b = this.b;
     if (this.hasPoint) {
       this.pointC(this.pointC0);
@@ -151,7 +157,7 @@ export class Joint implements Constraint {
     }
     if (this.hasLock) {
       this.lockC(this.lockC0);
-      for (let i = 0; i < 3; i++) this.lockLambda[i] = this.lockLambda[i]! * decay;
+      for (let i = 0; i < 3; i++) this.lockLambda[i] = this.lockLambda[i]! * lockDecay;
       this.lockK = Math.min(warmPenalty(this.lockK, p, this.k0Ang), this.stiffnessAng);
     }
     if (this.hasAxisRows) {

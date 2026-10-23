@@ -78,6 +78,11 @@ export function buildRobot(model: PhysicalModel, pose: Transform, robotId: strin
     // the body frame sits at the COM with the design-frame axes, carried by the pose
     toWorld(com, body.pos);
     body.rot.set(poseRot);
+    // A new body has no velocity history for the adaptive warm start to read (world.ts). Give it
+    // one that reads as free fall, so its first guess is the plain inertial target y (AVBD Eq. 2):
+    // started from a guess without gravity, the bodies of a falling assembly are pulled apart by
+    // the first solve and set spinning (issue #1).
+    for (let i = 0; i < 3; i++) body.prevVel[i] = -params.dt * params.gravity[i]!;
     bodies.push(body);
     byPart.set(part.id, body);
     parts.push(body.id);

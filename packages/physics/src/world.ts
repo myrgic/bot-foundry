@@ -5,7 +5,7 @@ import type { Connection } from './connection.ts';
 import { Manifold } from './contact.ts';
 import { Fnv64 } from './hash.ts';
 import type { BodyState, ConnectionState, RobotHandle, World, WorldOptions } from './index.ts';
-import { quatAddRotation, quatDiff, vec3 } from './math.ts';
+import { quatAddRotation, quatDiff, vec3, type Vec3 } from './math.ts';
 import { defaultParams, type SolverParams } from './params.ts';
 import { buildRobot, groundBody, manifoldKey, pairKey } from './robot.ts';
 import { createSystem, solveSystem } from './system.ts';
@@ -38,6 +38,10 @@ class PhysicsWorld implements World {
   private readonly sys = createSystem();
   private readonly dx = new Float64Array(6);
   private readonly contactOut = createContactOut();
+  // warm-start scratch, per body (see assemblyWeights)
+  private root = new Int32Array(0);
+  private weight = new Float64Array(0);
+  private massSum = new Float64Array(0);
 
   constructor(options: WorldOptions) {
     const g = options.gravity ?? [0, -9.81, 0];
@@ -89,7 +93,16 @@ class PhysicsWorld implements World {
     }
     this.activeManifolds = live;
 
-    // predict: inertial target y (Eq. 2) and the adaptive warm start of VBD (Chen et al. 2024)
+    // The adaptive warm start of VBD (Chen et al. 2024) scales gravity in the starting guess by how
+    // much of it a body felt last substep. Measured per body, it starts the bodies of one jointed
+    // assembly from guesses that disagree with each other; four Gauss-Seidel sweeps settle that
+    // only partly, which leaves the bodies' accelerations unequal again, and the error feeds itself
+    // (issue #1: a 0.1 rad/s nudge to one plate of a free-falling robot grew to 1.5 rad/s and loaded
+    // bolts to 97 %). The weight is therefore taken per assembly, from the acceleration of its
+    // centre of mass, in which the internal forces cancel.
+    if (gLen > 0) this.assemblyWeights(dt, g, gLen);
+
+    // predict: inertial target y (Eq. 2) and the warm start above
     for (const body of this.bodyList) {
       body.pos0.set(body.pos);
       body.rot0.set(body.rot);
@@ -97,13 +110,7 @@ class PhysicsWorld implements World {
       body.updateWorldInertia();
       for (let i = 0; i < 3; i++) body.inertialPos[i] = body.pos[i]! + dt * body.vel[i]! + h2 * g[i]!;
       quatAddRotation(body.inertialRot, body.rot, body.angVel, dt);
-      let w = 0;
-      if (gLen > 0) {
-        let along = 0;
-        for (let i = 0; i < 3; i++) along += ((body.vel[i]! - body.prevVel[i]!) / dt) * (g[i]! / gLen);
-        w = along / gLen;
-        w = w > 1 ? 1 : w > 0 ? w : 0;
-      }
+      const w = gLen > 0 ? this.weight[this.root[body.index]!]! : 0;
       for (let i = 0; i < 3; i++) body.pos[i] = body.pos[i]! + dt * body.vel[i]! + w * h2 * g[i]!;
       quatAddRotation(body.rot, body.rot, body.angVel, dt);
     }
@@ -132,6 +139,48 @@ class PhysicsWorld implements World {
       j.b.joints = j.b.joints.filter((x) => x !== j);
       const key = pairKey(j.a, j.b);
       this.linked.set(key, this.linked.get(key)! - 1);
+    }
+  }
+
+  /**
+   * Group the moving bodies into assemblies joined by unbroken connections (static bodies join
+   * nothing) and give each assembly one warm-start weight: the share of gravity its centre of mass
+   * accelerated with last substep, clamped to [0, 1]. Fills root (each body's assembly, named by its
+   * lowest body index) and weight (indexed by root).
+   */
+  private assemblyWeights(dt: number, g: Vec3, gLen: number): void {
+    const n = this.bodyList.length;
+    if (this.root.length < n) {
+      this.root = new Int32Array(n);
+      this.weight = new Float64Array(n);
+      this.massSum = new Float64Array(n);
+    }
+    const root = this.root, weight = this.weight, massSum = this.massSum;
+    for (let i = 0; i < n; i++) root[i] = i;
+    for (const c of this.connectionList) {
+      if (c.broken || c.joint.a.isStatic || c.joint.b.isStatic) continue;
+      const ra = findRoot(root, c.joint.a.index), rb = findRoot(root, c.joint.b.index);
+      if (ra < rb) root[rb] = ra;
+      else if (rb < ra) root[ra] = rb;
+    }
+    for (let i = 0; i < n; i++) {
+      root[i] = findRoot(root, i);
+      weight[i] = 0;
+      massSum[i] = 0;
+    }
+    // mass-weighted acceleration along gravity, summed in body order
+    for (const body of this.bodyList) {
+      if (body.isStatic) continue;
+      let along = 0;
+      for (let i = 0; i < 3; i++) along += ((body.vel[i]! - body.prevVel[i]!) / dt) * (g[i]! / gLen);
+      const r = root[body.index]!;
+      weight[r] = weight[r]! + body.mass * along;
+      massSum[r] = massSum[r]! + body.mass;
+    }
+    for (let i = 0; i < n; i++) {
+      if (root[i] !== i || !(massSum[i]! > 0)) continue;
+      const w = weight[i]! / massSum[i]! / gLen;
+      weight[i] = w > 1 ? 1 : w > 0 ? w : 0;
     }
   }
 
@@ -229,3 +278,12 @@ class PhysicsWorld implements World {
 
 const D = vec3();
 const DTHETA = vec3();
+
+/** Union-find root with path halving; roots are always the lowest index in their set. */
+function findRoot(parent: Int32Array, i: number): number {
+  while (parent[i] !== i) {
+    parent[i] = parent[parent[i]!]!;
+    i = parent[i]!;
+  }
+  return i;
+}

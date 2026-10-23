@@ -36,6 +36,15 @@ pub struct World {
     pub col: Collision,
     pub caps_out: [u32; 9],
     pub sched: Schedule,
+    pub warm: Warm,
+}
+
+/// Scratch for the per-assembly warm-start weight, indexed by body slot (see assembly_weights).
+#[derive(Default)]
+pub struct Warm {
+    root: Vec<u32>,
+    weight: Vec<f64>,
+    mass_sum: Vec<f64>,
 }
 
 /// The order of body solves within a sweep, as (body, partner) with partner 0 for a body solved
@@ -64,7 +73,7 @@ fn resize(caps: &mut Caps, s: &mut Store, layout: &mut Vec<u32>, version: &mut u
 
 impl World {
     pub fn new() -> World {
-        let mut w = World { caps: Caps([0; 9]), s: Store::new(), layout: Vec::new(), version: 0, col: Collision::new(), caps_out: [0; 9], sched: Schedule::default() };
+        let mut w = World { caps: Caps([0; 9]), s: Store::new(), layout: Vec::new(), version: 0, col: Collision::new(), caps_out: [0; 9], sched: Schedule::default(), warm: Warm::default() };
         w.reserve(&[1, 0, 0, 0, 0, 0, 0, 0, 0]);
         // the ground: static, at the origin, unrotated
         w.s.b_rot[3] = 1.0;
@@ -133,7 +142,7 @@ impl World {
     /// One substep for slots 1..=bodies and joints 0..joints: collision, then the solve.
     /// Returns how many connections broke; their indices are in broken_out.
     pub fn step(&mut self, bodies: usize, joints: usize) -> usize {
-        let World { caps, s, layout, version, col, sched, .. } = self;
+        let World { caps, s, layout, version, col, sched, warm, .. } = self;
         let p = Params::read(&s.params);
         col.link_new_joints(s, joints);
         let mut grow = |s: &mut Store, manifolds: usize| {
@@ -164,6 +173,11 @@ impl World {
         build_adjacency(s, bodies, joints, live);
         build_schedule(s, bodies, sched);
 
+        // one adaptive warm-start weight per jointed assembly (see PhysicsWorld.step)
+        if g_len > 0.0 {
+            assembly_weights(warm, s, bodies, joints, dt, g, g_len);
+        }
+
         for i in 1..=bodies {
             for c in 0..3 {
                 at_mut!(s.b_pos0, 3 * i + c) = at!(s.b_pos, 3 * i + c);
@@ -182,24 +196,9 @@ impl World {
             let pos = v3(&s.b_pos, i);
             let vel = v3(&s.b_vel, i);
             let ang = v3(&s.b_ang, i);
-            let prev = v3(&s.b_prev_vel, i);
             set3(&mut s.b_ipos, i, [pos[0] + dt * vel[0] + h2 * g[0], pos[1] + dt * vel[1] + h2 * g[1], pos[2] + dt * vel[2] + h2 * g[2]]);
             set4(&mut s.b_irot, i, quat_add_rotation(rot, ang, dt));
-            let mut w = 0.0;
-            if g_len > 0.0 {
-                let mut along = 0.0;
-                for c in 0..3 {
-                    along += ((vel[c] - prev[c]) / dt) * (g[c] / g_len);
-                }
-                w = along / g_len;
-                w = if w > 1.0 {
-                    1.0
-                } else if w > 0.0 {
-                    w
-                } else {
-                    0.0
-                };
-            }
+            let w = if g_len > 0.0 { warm.weight[warm.root[i] as usize] } else { 0.0 };
             set3(&mut s.b_pos, i, [pos[0] + dt * vel[0] + w * h2 * g[0], pos[1] + dt * vel[1] + w * h2 * g[1], pos[2] + dt * vel[2] + w * h2 * g[2]]);
             set4(&mut s.b_rot, i, quat_add_rotation(rot, ang, dt));
         }
@@ -262,6 +261,82 @@ impl World {
 /// Per-body constraint lists in the order the TypeScript backend stamps them: the body's live
 /// joints by creation order, then its manifolds in active (sorted-key) order. Static bodies are
 /// never solved, so they get no list.
+/// Union-find root with path halving; roots are always the lowest slot in their set.
+fn find_root(parent: &mut [u32], mut i: usize) -> usize {
+    while parent[i] as usize != i {
+        parent[i] = parent[parent[i] as usize];
+        i = parent[i] as usize;
+    }
+    i
+}
+
+/// A port of PhysicsWorld.assemblyWeights: group the moving bodies into assemblies joined by
+/// unbroken joints (static bodies join nothing) and give each one warm-start weight, the share of
+/// gravity its centre of mass accelerated with last substep, clamped to [0, 1]. Fills warm.root
+/// (each body's assembly, named by its lowest slot) and warm.weight (indexed by root).
+#[inline(never)]
+fn assembly_weights(warm: &mut Warm, s: &Store, bodies: usize, joints: usize, dt: f64, g: [f64; 3], g_len: f64) {
+    let n = bodies + 1;
+    if warm.root.len() < n {
+        warm.root.resize(n, 0);
+        warm.weight.resize(n, 0.0);
+        warm.mass_sum.resize(n, 0.0);
+    }
+    let Warm { root, weight, mass_sum } = warm;
+    for i in 0..n {
+        root[i] = i as u32;
+    }
+    for j in 0..joints {
+        if at!(s.j_broken, j) != 0 {
+            continue;
+        }
+        let (a, b) = (at!(s.j_a, j) as usize, at!(s.j_b, j) as usize);
+        if at!(s.b_mass, a) == 0.0 || at!(s.b_mass, b) == 0.0 {
+            continue;
+        }
+        let (ra, rb) = (find_root(root, a), find_root(root, b));
+        if ra < rb {
+            root[rb] = ra as u32;
+        } else if rb < ra {
+            root[ra] = rb as u32;
+        }
+    }
+    for i in 0..n {
+        root[i] = find_root(root, i) as u32;
+        weight[i] = 0.0;
+        mass_sum[i] = 0.0;
+    }
+    // mass-weighted acceleration along gravity, summed in slot order
+    for i in 1..=bodies {
+        let m = at!(s.b_mass, i);
+        if m == 0.0 {
+            continue;
+        }
+        let vel = v3(&s.b_vel, i);
+        let prev = v3(&s.b_prev_vel, i);
+        let mut along = 0.0;
+        for c in 0..3 {
+            along += ((vel[c] - prev[c]) / dt) * (g[c] / g_len);
+        }
+        let r = root[i] as usize;
+        weight[r] = weight[r] + m * along;
+        mass_sum[r] = mass_sum[r] + m;
+    }
+    for i in 0..n {
+        if root[i] as usize != i || !(mass_sum[i] > 0.0) {
+            continue;
+        }
+        let w = weight[i] / mass_sum[i] / g_len;
+        weight[i] = if w > 1.0 {
+            1.0
+        } else if w > 0.0 {
+            w
+        } else {
+            0.0
+        };
+    }
+}
+
 #[inline(never)]
 fn build_adjacency(s: &mut Store, bodies: usize, joints: usize, live: usize) {
     let off = &mut s.adj_off;

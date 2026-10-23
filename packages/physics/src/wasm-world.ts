@@ -262,6 +262,7 @@ export class WasmWorld implements World {
       const s = body.index + 1;
       v.b_pos.set(body.pos, 3 * s);
       v.b_rot.set(body.rot, 4 * s);
+      v.b_prev_vel.set(body.prevVel, 3 * s);
       v.b_mass[s] = body.mass;
       v.b_inertia.set(body.inertiaLocal, 9 * s);
       v.b_radius[s] = body.radius;
