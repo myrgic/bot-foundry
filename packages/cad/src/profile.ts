@@ -1,4 +1,5 @@
 import type { Loop, Profile, V2 } from '@botfoundry/model';
+import { arcGeometry, sampleArc } from './arc.ts';
 
 /** Maximum distance between an arc and its chord approximation, m. */
 export const CHORD_TOLERANCE = 0.0002;
@@ -27,26 +28,8 @@ export function tessellateLoop(loop: Loop, tol = CHORD_TOLERANCE): V2[] {
   for (const seg of loop.segments) {
     const p1 = seg.to;
     const bulge = seg.bulge ?? 0;
-    const chord = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
-    if (Math.abs(bulge) > 1e-12 && chord > 1e-12) {
-      const sweep = 4 * Math.atan(bulge);
-      const half = sweep / 2;
-      // centre sits on the left of the chord for CCW arcs: mid + leftNormal * (c / 2) / tan(sweep / 2)
-      const mx = (p0[0] + p1[0]) / 2;
-      const my = (p0[1] + p1[1]) / 2;
-      const lx = -(p1[1] - p0[1]) / chord;
-      const ly = (p1[0] - p0[0]) / chord;
-      const offset = chord / 2 / Math.tan(half);
-      const cx = mx + lx * offset;
-      const cy = my + ly * offset;
-      const r = Math.hypot(p0[0] - cx, p0[1] - cy);
-      const a0 = Math.atan2(p0[1] - cy, p0[0] - cx);
-      const n = arcSegmentCount(r, sweep, tol);
-      for (let i = 1; i < n; i++) {
-        const a = a0 + (sweep * i) / n;
-        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
-      }
-    }
+    const arc = arcGeometry(p0, p1, bulge);
+    if (arc) pts.push(...sampleArc(arc, arcSegmentCount(arc.radius, arc.sweep, tol)));
     pts.push(p1);
     p0 = p1;
   }

@@ -165,6 +165,8 @@ pub fn prepare(s: &mut Store, p: &Params, j: usize) {
     let b = at!(s.j_b, j) as usize;
     let flags = at!(s.j_flags, j);
     let decay = p.gamma;
+    // the angle lock keeps AVBD's alpha * gamma (Eq. 19); see Joint.prepare in src/joint.ts
+    let lock_decay = p.alpha * p.gamma;
     let (k0_lin, k0_ang) = (at!(s.j_k0, 2 * j), at!(s.j_k0, 2 * j + 1));
     let (st_lin, st_ang) = (at!(s.j_stiff, 2 * j), at!(s.j_stiff, 2 * j + 1));
     if flags & F_POINT != 0 {
@@ -179,7 +181,7 @@ pub fn prepare(s: &mut Store, p: &Params, j: usize) {
         let c = lock_c(s, j, a, b);
         set3(&mut s.j_lock_c0, j, [p.alpha * c[0], p.alpha * c[1], p.alpha * c[2]]);
         for i in 0..3 {
-            at_mut!(s.j_lock_lambda, 3 * j + i) = at!(s.j_lock_lambda, 3 * j + i) * decay;
+            at_mut!(s.j_lock_lambda, 3 * j + i) = at!(s.j_lock_lambda, 3 * j + i) * lock_decay;
         }
         at_mut!(s.j_lock_k, j) = js_min(p.warm(at!(s.j_lock_k, j), k0_ang, p.penalty_min), st_ang);
     }

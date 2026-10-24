@@ -132,3 +132,20 @@ export function planeFrame(plane: Plane): PlaneFrame {
   const y = cross3(normal, x);
   return { origin: plane.origin, x, y, normal, matrix: fromBasis(x, y, normal, plane.origin) };
 }
+
+/** Sketch coordinates (u, v) to a point in the design frame: origin + u * x + v * y. */
+export function planeToWorld(plane: Plane, p: readonly [number, number]): V3 {
+  const f = planeFrame(plane);
+  return [
+    f.origin[0] + p[0] * f.x[0] + p[1] * f.y[0],
+    f.origin[1] + p[0] * f.x[1] + p[1] * f.y[1],
+    f.origin[2] + p[0] * f.x[2] + p[1] * f.y[2],
+  ];
+}
+
+/** Project a design-frame point onto the plane's (u, v) coordinates. */
+export function worldToPlane(plane: Plane, w: V3): [number, number] {
+  const f = planeFrame(plane);
+  const d = sub3(w, f.origin);
+  return [dot3(d, f.x), dot3(d, f.y)];
+}

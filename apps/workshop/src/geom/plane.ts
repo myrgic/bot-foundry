@@ -1,13 +1,11 @@
-import type { Plane, V2, V3 } from '@botfoundry/model';
+import { planeFrame, planeToWorld, worldToPlane } from '@botfoundry/cad';
+import type { Plane, V3 } from '@botfoundry/model';
 
-// Sketch coordinates (u, v) map to origin + u * xAxis + v * (normal x xAxis), as in the model contract.
+// The plane basis and the sketch <-> world mapping come from the kernel (planeFrame, planeToWorld,
+// worldToPlane), so the sketcher uses exactly the frame the solid builder extrudes along. What
+// lives here is the editing helpers the kernel has no use for.
 
 const dot = (a: V3, b: V3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: V3, b: V3): V3 => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
 const unit = (a: V3): V3 => {
   const l = Math.hypot(a[0], a[1], a[2]) || 1;
   return [a[0] / l, a[1] / l, a[2] / l];
@@ -20,28 +18,11 @@ export interface PlaneBasis {
 }
 
 export function planeBasis(plane: Plane): PlaneBasis {
-  const n = unit(plane.normal);
-  // re-orthogonalise xAxis against the normal so a slightly skewed input still gives a frame
-  const d = dot(plane.xAxis, n);
-  const u = unit([plane.xAxis[0] - d * n[0], plane.xAxis[1] - d * n[1], plane.xAxis[2] - d * n[2]]);
-  return { u, v: cross(n, u), n };
+  const f = planeFrame(plane);
+  return { u: f.x, v: f.y, n: f.normal };
 }
 
-export function planeToWorld(plane: Plane, p: V2): V3 {
-  const { u, v } = planeBasis(plane);
-  return [
-    plane.origin[0] + p[0] * u[0] + p[1] * v[0],
-    plane.origin[1] + p[0] * u[1] + p[1] * v[1],
-    plane.origin[2] + p[0] * u[2] + p[1] * v[2],
-  ];
-}
-
-/** Project a world point onto the plane's (u, v) coordinates. */
-export function worldToPlane(plane: Plane, w: V3): V2 {
-  const { u, v } = planeBasis(plane);
-  const d: V3 = [w[0] - plane.origin[0], w[1] - plane.origin[1], w[2] - plane.origin[2]];
-  return [dot(d, u), dot(d, v)];
-}
+export { planeToWorld, worldToPlane };
 
 /** The plane moved along its normal. */
 export function offsetPlane(plane: Plane, distance: number): Plane {

@@ -14,7 +14,7 @@ const BAD: [string, PhysicalModel, Transform, RegExp][] = [
   ['a NaN pose position', model('r', [part()]), { position: [0, NaN, 0], rotation: [0, 0, 0, 1] }, /pose position must be finite/],
   ['an infinite pose position', model('r', [part()]), { position: [Infinity, 0, 0], rotation: [0, 0, 0, 1] }, /pose position must be finite/],
   ['a NaN pose rotation', model('r', [part()]), { position: [0, 0, 0], rotation: [0, 0, NaN, 1] }, /pose rotation must be finite/],
-  ['a zero-length pose rotation', model('r', [part()]), { position: [0, 0, 0], rotation: [0, 0, 0, 0] }, /pose rotation must not be zero-length/],
+  ['a zero-length pose rotation', model('r', [part()]), { position: [0, 0, 0], rotation: [0, 0, 0, 0] }, /pose rotation must have length at least 1e-9/],
   ['a NaN mass', withMass({ mass: NaN }), AT_ORIGIN, /part b: mass must be finite/],
   ['an infinite inertia', withMass({ inertia: [1, 1, Infinity, 0, 0, 0] }), AT_ORIGIN, /part b: inertia must be finite/],
   ['a NaN product of inertia', withMass({ inertia: [1, 1, 1, 0, NaN, 0] }), AT_ORIGIN, /part b: inertia must be finite/],

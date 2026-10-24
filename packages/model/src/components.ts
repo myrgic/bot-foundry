@@ -62,7 +62,7 @@ export interface ComponentDef {
   mass: number;
   /** what you see and what collides, local frame */
   geometry: Primitive[];
-  /** space the part needs to fit and run (spinning cans, cable bends); carved out of the frame */
+  /** space the part needs to fit and run (spinning cans, cable bends, an output shaft's full length); carved out of the frame */
   keepOut: Primitive[];
   mounts: MountPattern[];
   ports: Port[];

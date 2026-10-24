@@ -43,10 +43,10 @@ function requireFinite(what: string, values: readonly number[]): void {
 export function buildRobot(model: PhysicalModel, pose: Transform, robotId: string, firstIndex: number, params: SolverParams): BuiltRobot {
   requireFinite('the pose position', pose.position);
   requireFinite('the pose rotation', pose.rotation);
-  // a zero-length quaternion has no direction; quatNormalize would turn it into all zeros
-  if (!(pose.rotation.reduce((sum, v) => sum + v * v, 0) > 0)) {
-    throw new Error(`the pose rotation must not be zero-length, got [${pose.rotation.join(', ')}]`);
-  }
+  // a finite but zero-length quaternion normalizes to a degenerate identity/NaN state: refuse it
+  const rotLenSq =
+    pose.rotation[0]! ** 2 + pose.rotation[1]! ** 2 + pose.rotation[2]! ** 2 + pose.rotation[3]! ** 2;
+  if (rotLenSq < 1e-18) throw new Error(`the pose rotation must have length at least 1e-9, got ${Math.sqrt(rotLenSq)}`);
   for (const part of model.parts) {
     requireFinite(`part ${part.id}: mass`, [part.mass.mass]);
     requireFinite(`part ${part.id}: inertia`, part.mass.inertia);
@@ -82,6 +82,11 @@ export function buildRobot(model: PhysicalModel, pose: Transform, robotId: strin
     // the body frame sits at the COM with the design-frame axes, carried by the pose
     toWorld(com, body.pos);
     body.rot.set(poseRot);
+    // A new body has no velocity history for the adaptive warm start to read (world.ts). Give it
+    // one that reads as free fall, so its first guess is the plain inertial target y (AVBD Eq. 2):
+    // started from a guess without gravity, the bodies of a falling assembly are pulled apart by
+    // the first solve and set spinning (issue #1).
+    for (let i = 0; i < 3; i++) body.prevVel[i] = -params.dt * params.gravity[i]!;
     bodies.push(body);
     byPart.set(part.id, body);
     parts.push(body.id);
@@ -118,9 +123,7 @@ function buildConnection(
     case 'bolt': {
       anchor = toWorld(c.position, vec3());
       axis = worldDir(c.axis);
-      // orient the bolt axis from B's side to A's side so tension reads positive
-      const side = (a.pos[0]! - b.pos[0]!) * axis[0]! + (a.pos[1]! - b.pos[1]!) * axis[1]! + (a.pos[2]! - b.pos[2]!) * axis[2]!;
-      if (side < 0) for (let i = 0; i < 3; i++) axis[i] = -axis[i]!;
+      // the axis points from b toward a (see Connection in @botfoundry/model); used as given
       rating = { kind: 'bolt', rating: c.rating };
       break;
     }

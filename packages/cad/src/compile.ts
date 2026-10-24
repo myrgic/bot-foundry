@@ -22,6 +22,17 @@ const HAZ_KNOCKDOWN = 0.6;
 /** Hardened steels are welded with mild-steel filler; ER70S-6 minimum tensile strength is 480 MPa (AWS A5.18). */
 const FILLER_ULTIMATE: Partial<Record<MaterialId, number>> = { ar500: 480e6, s7: 480e6 };
 
+/**
+ * A bolt connection's axis points from part b toward part a, the head side, so a bolt in tension
+ * reads positive axial force. The authored sign is arbitrary, so flip it when part a's centre of
+ * mass sits on the negative side of part b's along the axis. With the centres level along the
+ * axis there is nothing to go by and the axis is kept as given.
+ */
+function boltAxis(axis: V3, comA: V3, comB: V3): V3 {
+  const side = (comA[0] - comB[0]) * axis[0] + (comA[1] - comB[1]) * axis[1] + (comA[2] - comB[2]) * axis[2];
+  return side < 0 ? [0 - axis[0], 0 - axis[1], 0 - axis[2]] : axis;
+}
+
 /** What a catalog part is made of, for contact and failure purposes. The catalog carries no material. */
 function componentMaterial(def: ComponentDef): MaterialId {
   switch (def.category) {
@@ -121,13 +132,14 @@ export function compileModel(_w: ManifoldToplevel, design: Design, catalog: Cata
     materialOf.set(inst.id, material);
   }
   const known = new Set(parts.map((p) => p.id));
+  const comOf = new Map(parts.map((p) => [p.id, p.mass.com] as const));
 
   // ---- connections ----
   const connections: Connection[] = [];
   for (const f of design.fasteners) {
     if (!known.has(f.joins[0]) || !known.has(f.joins[1])) continue;
     connections.push({
-      kind: 'bolt', id: f.id, a: f.joins[0], b: f.joins[1], position: f.position, axis: f.axis, rating: boltRating(f.bolt),
+      kind: 'bolt', id: f.id, a: f.joins[0], b: f.joins[1], position: f.position, axis: boltAxis(f.axis, comOf.get(f.joins[0]) as V3, comOf.get(f.joins[1]) as V3), rating: boltRating(f.bolt),
     });
   }
   // a component bolted through its mount pattern gets one bolt per mount hole unless the design lists fasteners for it
@@ -148,7 +160,7 @@ export function compileModel(_w: ManifoldToplevel, design: Design, catalog: Cata
           a: inst.id,
           b: inst.mountedTo as Id,
           position: applyPoint(mul4(pose, mul4(face.matrix, translation([hole.at[0], hole.at[1], 0]))), [0, 0, 0]),
-          axis: applyDir(pose, face.normal),
+          axis: boltAxis(applyDir(pose, face.normal), comOf.get(inst.id) as V3, comOf.get(inst.mountedTo as Id) as V3),
           rating: boltRating(hole.bolt),
         });
       });

@@ -77,6 +77,7 @@ export interface FastenerInstance {
   id: Id;
   bolt: BoltSpec;
   position: V3;
+  /** along the bolt; its sign is free, compile orients the connection axis from `joins[1]` toward `joins[0]` */
   axis: V3;
   /** the two things it clamps together: body or component instance ids */
   joins: [Id, Id];

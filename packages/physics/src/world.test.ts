@@ -30,7 +30,7 @@ describe.each(BACKENDS)('world (%s backend)', (backend) => {
         boxPart('bracket', [0.04, 0.04, 0.04], [-0.1, 0.445, 0.1], { mass: 0.05 }),
       ], [
         { kind: 'joint', id: 'hinge', joint: 'hinge', a: 'chassis', b: 'arm', anchor: [0.15, 0.45, 0], axis: [0, 0, 1], limits: [-1, 1] },
-        bolt('m5', 'chassis', 'bracket', [-0.1, 0.425, 0.1], [0, 1, 0]),
+        bolt('m5', 'chassis', 'bracket', [-0.1, 0.425, 0.1], [0, -1, 0]),
       ]),
       { position: [0.5, 0, 0], rotation: [0, 0, 0, 1] },
     );

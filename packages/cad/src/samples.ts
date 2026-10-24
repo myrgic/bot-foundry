@@ -58,14 +58,14 @@ export function sampleDesign(): Design {
       id: 'sk-wall-right', name: 'Right wall', plane: across(WALL_INNER),
       profiles: [{
         outer: polygonLoop([[-0.15, BASE_TOP], [0.2, BASE_TOP], [0.2, 0.07], [0.09, 0.08], [-0.12, 0.08], [-0.15, 0.07]]),
-        holes: [circleLoop(AXLE_X, AXLE_Y, 0.005)],
+        holes: [],
       }],
     },
     {
       id: 'sk-wall-left', name: 'Left wall', plane: across(-WALL_INNER - WALL_T),
       profiles: [{
         outer: polygonLoop([[-0.15, BASE_TOP], [0.2, BASE_TOP], [0.2, 0.07], [0.09, 0.08], [-0.12, 0.08], [-0.15, 0.07]]),
-        holes: [circleLoop(AXLE_X, AXLE_Y, 0.005)],
+        holes: [],
       }],
     },
     {

@@ -18,7 +18,7 @@ const world = createWorld({ backend: 'wasm' });
 
 `createWorld({ backend: 'wasm' })` throws if `loadWasmSolver()` has not finished. Everything else about a world (adding robots, stepping, reading bodies, connections and the hash) is the same on both. `addRobot` throws on both backends if the pose, a part's mass or a part's inertia is not a finite number.
 
-The two backends agree exactly because the Rust code performs the same float64 operations in the same order: no fused multiply-add, the same hand-written `atan2`, and SIMD only where each lane does one value's ordinary scalar arithmetic. `src/backends.test.ts` and `src/backends.robots.test.ts` check this by comparing state hashes over 2,000 substeps. If you change the solver, change both backends and keep those tests passing.
+The two backends agree exactly because the Rust code performs the same float64 operations in the same order: no fused multiply-add, the same hand-written `atan2`, and SIMD only where each lane does one value's ordinary scalar arithmetic. `src/backends.test.ts` and the `src/backends.robots.*.test.ts` files check this by comparing state hashes over 2,000 substeps. If you change the solver, change both backends and keep those tests passing.
 
 ## Benchmark
 

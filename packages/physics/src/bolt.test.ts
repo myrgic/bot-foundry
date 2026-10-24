@@ -49,6 +49,27 @@ describe.each(BACKENDS)('bolts (%s backend)', (backend) => {
     expect(world.connections()[0]!.axial).toBeCloseTo(10 * G, 1);
   });
 
+  it('uses the axis as given: level centres still read tension positive when the axis points b to a', () => {
+    // the weight hangs from the anchor through a bolt whose parts sit at the same height, so the
+    // centres of mass say nothing about which way the axis points; only the stated convention does
+    const level = (axis: [number, number, number]) => {
+      const world = createWorld();
+      world.addRobot(
+        model('level', [
+          boxPart('anchor', [0.1, 0.1, 0.1], [0, 1, 0], { mass: 0 }),
+          boxPart('weight', [0.1, 0.1, 0.1], [0.12, 1, 0], { mass: 10 }),
+        ], [bolt('m5', 'anchor', 'weight', [0.06, 1, 0], axis)]),
+        AT_ORIGIN,
+      );
+      for (let i = 0; i < 500; i++) world.step();
+      return world.connections()[0]!.axial;
+    };
+    // a = anchor is the head side, which is up for a hanging load: b -> a = +y
+    expect(level([0, 1, 0])).toBeCloseTo(10 * G, 1);
+    // the same bolt with the axis stated the other way round reads the opposite sign: nothing is flipped for it
+    expect(level([0, -1, 0])).toBeCloseTo(-10 * G, 1);
+  });
+
   it('breaks once the hanging load exceeds its rating, and not before', () => {
     // pure tension fails at 1.4 · Ft,R (EN 1993-1-8 Table 3.4 interaction)
     const breakingLoad = 1.4 * boltRating({ size: 'M5', grade: '8.8', length: 0.02 }).tension;
@@ -106,7 +127,7 @@ describe.each(BACKENDS)('bolts (%s backend)', (backend) => {
       model('plate', [
         boxPart('plate', [0.6, 0.02, 0.6], [0, 0.11, 0], { mass: 100 }),
         boxPart('bracket', [0.04, 0.03, 0.04], [0.2, 0.135, 0.2], { mass: 0.05 }),
-      ], [bolt('a', 'plate', 'bracket', [0.19, 0.12, 0.2], [0, 1, 0]), bolt('b', 'plate', 'bracket', [0.21, 0.12, 0.2], [0, 1, 0])]),
+      ], [bolt('a', 'plate', 'bracket', [0.19, 0.12, 0.2], [0, -1, 0]), bolt('b', 'plate', 'bracket', [0.21, 0.12, 0.2], [0, -1, 0])]),
       { position: [0, 0, 0], rotation: [0.02, 0, 0.01, 1].map((v, _, q) => v / Math.hypot(...q)) as [number, number, number, number] },
     );
     let vmaxLate = 0, vmaxAll = 0;
