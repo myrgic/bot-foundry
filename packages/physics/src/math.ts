@@ -148,6 +148,7 @@ export function quatAddRotation(out: Quat, q: Quat, w: ArrayLike<number>, s: num
   out[1] = qy + (wz * qx - wx * qz + wy * qw);
   out[2] = qz + (wx * qy - wy * qx + wz * qw);
   out[3] = qw - (wx * qx + wy * qy + wz * qz);
+  // never zero-length: (s·w, 0) ⊗ q is orthogonal to a unit q, so |out|² = 1 + |½ s·w|²
   return quatNormalize(out);
 }
 
