@@ -29,6 +29,14 @@ describe('persist', () => {
     expect(() => parseDesign(JSON.stringify({ schema: 'botfoundry/design@0', components: [{ id: 'c', def: 'd', pose: { position: [0, 0], rotation: [0, 0, 0, 1] } }] }))).toThrow(/invalid pose/);
   });
 
+  it('rejects degenerate sketch planes on load with a readable message', () => {
+    const sketch = (plane: object) => JSON.stringify({ schema: 'botfoundry/design@0', sketches: [{ id: 's', profiles: [], plane }] });
+    const origin = [0, 0, 0];
+    expect(() => parseDesign(sketch({ origin, normal: [0, 0, 0], xAxis: [1, 0, 0] }))).toThrow(/zero normal/);
+    expect(() => parseDesign(sketch({ origin, normal: [0, 0, 1], xAxis: [0, 0, 2] }))).toThrow(/x axis parallel to its normal/);
+    expect(parseDesign(sketch({ origin, normal: [0, 0, 1], xAxis: [1, 0, 0] })).sketches).toHaveLength(1);
+  });
+
   it('fills missing lists so a minimal file loads', () => {
     const d = parseDesign('{"schema":"botfoundry/design@0"}');
     expect(d.bodies).toEqual([]);

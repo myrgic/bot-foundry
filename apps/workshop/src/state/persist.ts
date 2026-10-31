@@ -1,4 +1,5 @@
-import { EMPTY_CONTROLS, type Design } from '@botfoundry/model';
+import { planeFrame } from '@botfoundry/cad';
+import { EMPTY_CONTROLS, type Design, type Plane } from '@botfoundry/model';
 
 // Saving and loading designs as JSON, in localStorage and through files.
 
@@ -16,6 +17,14 @@ function fail(message: string): never {
 
 function checkPlane(p: unknown, where: string): void {
   if (!isObject(p) || !isVec(p.origin, 3) || !isVec(p.normal, 3) || !isVec(p.xAxis, 3)) fail(`${where} has no valid plane`);
+  const plane = p as unknown as Plane;
+  if (Math.hypot(plane.normal[0], plane.normal[1], plane.normal[2]) < 1e-9) fail(`${where} has a zero normal`);
+  // The kernel throws for an x axis parallel to the normal; reject it here so no render path meets it.
+  try {
+    planeFrame(plane);
+  } catch {
+    fail(`${where} has an x axis parallel to its normal`);
+  }
 }
 
 /** Parse and sanity-check design JSON. Throws an Error with a readable message. */
