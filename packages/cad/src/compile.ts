@@ -132,14 +132,20 @@ export function compileModel(_w: ManifoldToplevel, design: Design, catalog: Cata
     materialOf.set(inst.id, material);
   }
   const known = new Set(parts.map((p) => p.id));
-  const comOf = new Map(parts.map((p) => [p.id, p.mass.com] as const));
+  const massOf = new Map(parts.map((p) => [p.id, p.mass] as const));
+  // a zero-mass part reports the origin as its centre of mass, which says nothing about where it sits; the bolt does
+  const centreOf = (id: Id, at: V3): V3 => {
+    const mass = massOf.get(id);
+    if (!mass) throw new Error(`bolt joins unknown part ${id}`);
+    return mass.mass > 0 ? mass.com : at;
+  };
 
   // ---- connections ----
   const connections: Connection[] = [];
   for (const f of design.fasteners) {
     if (!known.has(f.joins[0]) || !known.has(f.joins[1])) continue;
     connections.push({
-      kind: 'bolt', id: f.id, a: f.joins[0], b: f.joins[1], position: f.position, axis: boltAxis(f.axis, comOf.get(f.joins[0]) as V3, comOf.get(f.joins[1]) as V3), rating: boltRating(f.bolt),
+      kind: 'bolt', id: f.id, a: f.joins[0], b: f.joins[1], position: f.position, axis: boltAxis(f.axis, centreOf(f.joins[0], f.position), centreOf(f.joins[1], f.position)), rating: boltRating(f.bolt),
     });
   }
   // a component bolted through its mount pattern gets one bolt per mount hole unless the design lists fasteners for it
@@ -154,13 +160,14 @@ export function compileModel(_w: ManifoldToplevel, design: Design, catalog: Cata
     def.mounts.forEach((mount, mi) => {
       const face = planeFrame(mount.face);
       mount.holes.forEach((hole, hi) => {
+        const position = applyPoint(mul4(pose, mul4(face.matrix, translation([hole.at[0], hole.at[1], 0]))), [0, 0, 0]);
         connections.push({
           kind: 'bolt',
           id: `${inst.id}.mount${mi}.${hi}`,
           a: inst.id,
           b: inst.mountedTo as Id,
-          position: applyPoint(mul4(pose, mul4(face.matrix, translation([hole.at[0], hole.at[1], 0]))), [0, 0, 0]),
-          axis: boltAxis(applyDir(pose, face.normal), comOf.get(inst.id) as V3, comOf.get(inst.mountedTo as Id) as V3),
+          position,
+          axis: boltAxis(applyDir(pose, face.normal), centreOf(inst.id, position), centreOf(inst.mountedTo as Id, position)),
           rating: boltRating(hole.bolt),
         });
       });
