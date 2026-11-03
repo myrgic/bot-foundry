@@ -181,6 +181,63 @@ describe('connections', () => {
     expect(axis('down-low-first')).toEqual([0, 0, -1]);
   });
 
+  it('orients a bolt to a zero-mass part by where the bolt sits, not the origin its centre of mass reports', async () => {
+    const bolt = { size: 'M6', grade: '10.9', length: 0.02 } as const;
+    const anchor: ComponentDef = {
+      id: 'anchor', name: 'anchor', category: 'sensor', mass: 0,
+      geometry: [{ kind: 'box', size: [0.01, 0.01, 0.01], at: [0, 0, 0] }], keepOut: [], mounts: [], ports: [],
+    };
+    const k = await createKernel({ catalog: [anchor] });
+    // the slab spans x in [0, 0.1] with its centre of mass near x = 0.05; the anchor sits just past its +x face
+    const d = makeDesign({
+      sketches: [sketch('s', PLANE_XY, rectProfile(0, 0, 0.1, 0.1))],
+      bodies: [body('slab', 'a36', { kind: 'billet' }, { kind: 'extrude', id: 'e', sketch: 's', distance: 0.01, op: 'new' })],
+      components: [{ id: 'anchor', def: 'anchor', pose: { position: [0.15, 0.05, 0.005], rotation: [0, 0, 0, 1] } }],
+      // a is the anchor, so b -> a is +x; the authored -x must flip
+      fasteners: [{ id: 'f', bolt, position: [0.1, 0.05, 0.005], axis: [-1, 0, 0], joins: ['anchor', 'slab'] }],
+    });
+    const c = k.compile(d).connections[0]!;
+    k.dispose();
+    if (c.kind !== 'bolt') throw new Error('expected a bolt');
+    expect(c.axis).toEqual([1, 0, 0]);
+  });
+
+  it('orients a mount-pattern bolt to a zero-mass component by the hole, not the origin its centre of mass reports', async () => {
+    const bolt = { size: 'M3', grade: '10.9', length: 0.01 } as const;
+    const bracket: ComponentDef = {
+      id: 'bracket', name: 'bracket', category: 'sensor', mass: 0,
+      geometry: [{ kind: 'box', size: [0.02, 0.02, 0.002], at: [0, 0, 0.001] }], keepOut: [], ports: [],
+      mounts: [{ face: PLANE_XY, holes: [{ at: [0, 0], bolt }] }],
+    };
+    const k = await createKernel({ catalog: [bracket] });
+    // the slab spans x and y in [0, 0.1] with its centre of mass near (0.05, 0.05, 0.005); the bracket sits on its +z face
+    const d = makeDesign({
+      sketches: [sketch('s', PLANE_XY, rectProfile(0, 0, 0.1, 0.1))],
+      bodies: [body('slab', 'a36', { kind: 'billet' }, { kind: 'extrude', id: 'e', sketch: 's', distance: 0.01, op: 'new' })],
+      components: [{ id: 'bracket', def: 'bracket', mountedTo: 'slab', pose: { position: [0.05, 0.05, 0.01], rotation: [0, 0, 0, 1] } }],
+    });
+    const c = k.compile(d).connections.find((x) => x.id === 'bracket.mount0.0')!;
+    k.dispose();
+    if (c.kind !== 'bolt') throw new Error('expected a bolt');
+    expect(c.axis).toEqual([0, 0, 1]);
+  });
+
+  it('skips the mount pattern when the component is mounted to a part that is not in the design', async () => {
+    const bolt = { size: 'M3', grade: '10.9', length: 0.01 } as const;
+    const bracket: ComponentDef = {
+      id: 'bracket', name: 'bracket', category: 'sensor', mass: 0,
+      geometry: [{ kind: 'box', size: [0.02, 0.02, 0.002], at: [0, 0, 0.001] }], keepOut: [], ports: [],
+      mounts: [{ face: PLANE_XY, holes: [{ at: [0, 0], bolt }] }],
+    };
+    const k = await createKernel({ catalog: [bracket] });
+    const d = makeDesign({
+      components: [{ id: 'bracket', def: 'bracket', mountedTo: 'ghost', pose: { position: [0, 0, 0], rotation: [0, 0, 0, 1] } }],
+    });
+    const bolts = k.compile(d).connections.filter((x) => x.id.startsWith('bracket.mount'));
+    k.dispose();
+    expect(bolts).toHaveLength(0);
+  });
+
   it('keeps a bolt axis as authored when the centres are level along it', () => {
     const bolt = { size: 'M6', grade: '10.9', length: 0.02 } as const;
     const d = two({ fasteners: [
